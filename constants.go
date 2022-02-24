@@ -10,6 +10,6 @@ const UNI_INFO_PATH = "uniinfo"
 const UNI_NEIGH_PATH = "neighbourunis"
 const UNI_DIAG_PATH = "diag"
 
-//const LOCAL_PORT = "8080"
-//const LOCAL_HOST_PRE = "http://localhost:" + LOCAL_PORT + "/"
+const LOCAL_PORT = "8080"
+const LOCAL_HOST_PRE = "http://localhost:" + LOCAL_PORT + "/"
 const HEROKU_PATH = "https://prog2005-axel-assignment1.herokuapp.com"
