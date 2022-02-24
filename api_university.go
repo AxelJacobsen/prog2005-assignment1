@@ -49,16 +49,19 @@ func handleUniGet(w http.ResponseWriter, r *http.Request, startTime int64) {
 			toScreen, _ := handleUniInfoGet(w, parts[4])
 			w.Write(toScreen)
 		} else {
-			http.Error(w, "Page Empty, not enough mandatory URL components, example:\n"+LOCAL_HOST_PRE+"/"+UNI_INFO_PATH+"/{:partial_or_complete_university_name}/", http.StatusNotFound)
+			http.Error(w, "Page Empty, not enough mandatory URL components, example:\n"+HEROKU_PATH+"/"+UNI_BASE_PATH+"/"+UNI_INFO_PATH+"/{:partial_or_complete_university_name}/", http.StatusNotFound)
 		}
 	case UNI_NEIGH_PATH:
 		if 5 < len(parts) && parts[4] != "" && parts[5] != "" {
 			handleUniNeighbourGet(w, r, true, "")
 		} else {
-			http.Error(w, "Page Empty, not enough mandatory URL components, example:\n"+LOCAL_HOST_PRE+"/"+UNI_NEIGH_PATH+"/{:country_name}/{:partial_or_complete_university_name}{?limit={:number}}", http.StatusNotFound)
+			http.Error(w, "Page Empty, not enough mandatory URL components, example:\n"+HEROKU_PATH+"/"+UNI_BASE_PATH+"/"+UNI_NEIGH_PATH+"/{:country_name}/{:partial_or_complete_university_name}{?limit={:number}}", http.StatusNotFound)
 		}
 	case UNI_DIAG_PATH:
 		handleUniDiagGet(w, r, startTime)
+
+	case "":
+		http.Error(w, "Page Empty, example:\n"+HEROKU_PATH+"/"+UNI_BASE_PATH+"/"+UNI_NEIGH_PATH+"/{:country_name}/{:partial_or_complete_university_name}{?limit={:number}}\n"+HEROKU_PATH+"/"+UNI_BASE_PATH+"/"+UNI_INFO_PATH+"/{:partial_or_complete_university_name}/", http.StatusNoContent)
 	}
 }
 
