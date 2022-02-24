@@ -18,7 +18,6 @@ func HandlerUniversity(startTime int64) func(http.ResponseWriter, *http.Request)
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
-			//handleUniInfoPost(w, r, db)
 			//This is incase the program is evert to have a post option
 			//In other word this function is very redundant and everything
 			//in handleUniInfoget couldve been put in the below case
@@ -53,7 +52,7 @@ func handleUniGet(w http.ResponseWriter, r *http.Request, startTime int64) {
 		}
 	case UNI_NEIGH_PATH:
 		if 5 < len(parts) && parts[4] != "" && parts[5] != "" {
-			handleUniNeighbourGet(w, r, true, "")
+			handleUniNeighbourGet(w, r)
 		} else {
 			http.Error(w, "Page Empty, not enough mandatory URL components, example:\n"+HEROKU_PATH+"/"+UNI_BASE_PATH+"/"+UNI_NEIGH_PATH+"/{:country_name}/{:partial_or_complete_university_name}{?limit={:number}}", http.StatusNotFound)
 		}
@@ -84,7 +83,19 @@ func handleUniInfoGet(w http.ResponseWriter, urlData string) ([]byte, []Universi
 	//Creates an empty slot for the Uni data to go and fills it
 	var Uni []University
 	json.Unmarshal(parsedData, &Uni)
-	return parsedData, Uni
+	if len(Uni) != 0 {
+		countDat := getCountryDB(w, true, Uni[0].Country)
+		for i := 0; i < len(Uni); i++ {
+			Uni[i].Coutryholder = countDat[0]
+		}
+	}
+
+	screenDat, err3 := json.Marshal(&Uni)
+	if err3 != nil {
+		log.Fatal(err3)
+	}
+
+	return screenDat, Uni
 }
 
 /*
@@ -92,74 +103,53 @@ handleUniNeighbourGet collects information about a country and its universities 
 neighbourunis/{:country_name}/{:partial_or_complete_university_name}{?limit={:number}}
 then it gets data about universities in the surroudning countries
 */
-func handleUniNeighbourGet(w http.ResponseWriter, r *http.Request, rec bool, countCode string) []Country {
+func handleUniNeighbourGet(w http.ResponseWriter, r *http.Request) {
 	http.Header.Add(w.Header(), "content-type", "application/json")
-	var countDat *http.Response                       //Reserve name
 	urlData := removeUrlExcess(r)                     //Cleans URL before split
 	urlData = strings.ReplaceAll(urlData, " ", "%20") //Removes spaces in URL
 
 	Parts := strings.Split(urlData, "/") //Splits URL Into workable strings
 
-	if rec { //Checks if this is the original loop of the program
-		//gets iniital data from first country
-		tempDat, err := http.Get("https://restcountries.com/v3.1/name/" + Parts[0] + "?fullText=true")
-		if err != nil {
-			log.Fatal(err)
-		}
-		countDat = tempDat
-	} else {
-		//Gets data from all bordering nations in second loop
-		tempDat, err := http.Get("https://restcountries.com/v3.1/alpha?codes=cca3" + countCode)
-		if err != nil {
-			log.Fatal(err)
-		}
-		countDat = tempDat
-	}
-	//Converts to byte for easier use
-	pars, err2 := ioutil.ReadAll(countDat.Body)
-	if err2 != nil {
-		log.Fatal(err2)
-	}
-	//Enters json data into new Country list
-	var countDb []Country
-	json.Unmarshal(pars, &countDb)
+	countDb := getCountryDB(w, true, Parts[0])
 
-	if rec {
-		//Creates a string to query neighbouring + original countries
-		countCodeQuery := "," + countDb[0].Isocode
-		for _, bord := range countDb[0].Bordering {
-			countCodeQuery += "," + bord
-		}
-		//Overwrites countDB with all new data
-		countDb = handleUniNeighbourGet(w, r, false, countCodeQuery)
-	} else {
-		//Gets Number from text
-		limit, err4 := strconv.Atoi(r.URL.Query().Get("limit"))
-		if err4 != nil {
-			log.Fatal(err4)
+	//Creates a list of all country codes with original country
+	countCodeQuery := "," + countDb[0].Isocode
+	for _, bord := range countDb[0].Bordering {
+		countCodeQuery += "," + bord
+	}
+	//Overwrites countDB with all new data
+	countDb = getCountryDB(w, false, countCodeQuery)
+
+	//Gets Number from text
+	limit := 0
+	var err1 error
+	limitString := r.URL.Query().Get("limit")
+	if limitString != "" {
+		limit, err1 = strconv.Atoi(limitString)
+		if err1 != nil {
+			log.Fatal(err1)
 		} else if limit == 0 {
 			limit = 9999 //Sets a default value if no limit is supplied, India has most universities in the world with over 5000
 		}
-		//Define empty University list
-		var uniNeighDb []University
-		for _, countUni := range countDb {
-			//Gets information about all unis in correct country
-			_, tempUni := handleUniInfoGet(w, Parts[1]+"&country="+countUni.CountryName.CommonName)
-			for o := 0; o < limit && o < len(tempUni); o++ {
-				//Adds country to the university
-				tempUni[o].Coutryholder = countUni
-				//Appends university to the emptry list
-				uniNeighDb = append(uniNeighDb, tempUni[o])
-			}
-		}
-		//Prepares data for writing to webpage
-		screenDat, err3 := json.Marshal(&uniNeighDb)
-		if err3 != nil {
-			log.Fatal(err3)
-		}
-		w.Write(screenDat)
+	} else {
+		limit = 9999
 	}
-	return countDb
+	//Define empty University list
+	var uniNeighDb []University
+	for _, countUni := range countDb {
+		//Gets information about all unis in correct country
+		_, tempUni := handleUniInfoGet(w, Parts[1]+"&country="+countUni.CountryName.CommonName)
+		for o := 0; o < limit && o < len(tempUni); o++ {
+			//Appends university to the emptry list
+			uniNeighDb = append(uniNeighDb, tempUni[o])
+		}
+	}
+	//Prepares data for writing to webpage
+	screenDat, err2 := json.Marshal(&uniNeighDb)
+	if err2 != nil {
+		log.Fatal(err2)
+	}
+	w.Write(screenDat)
 }
 
 // handleUniInfoGet utility function, package level, to handle GET request to university route
@@ -187,6 +177,37 @@ func handleUniDiagGet(w http.ResponseWriter, r *http.Request, startTime int64) {
 	}
 
 	w.Write(diagData)
+}
+
+func getCountryDB(w http.ResponseWriter, nameAlpha bool, countCodeName string) []Country {
+	http.Header.Add(w.Header(), "content-type", "application/json")
+	var countDat *http.Response //Reserve name
+
+	if nameAlpha { //Checks if this is the original loop of the program
+		//gets iniital data from first country
+		tempDat, err := http.Get("https://restcountries.com/v3.1/name/" + countCodeName + "?fullText=true")
+		if err != nil {
+			log.Fatal(err)
+		}
+		countDat = tempDat
+	} else {
+		//Gets data from all bordering nations in second loop
+		tempDat, err := http.Get("https://restcountries.com/v3.1/alpha?codes=cca3" + countCodeName)
+		if err != nil {
+			log.Fatal(err)
+		}
+		countDat = tempDat
+	}
+
+	pars, err2 := ioutil.ReadAll(countDat.Body)
+	if err2 != nil {
+		log.Fatal(err2)
+	}
+	//Enters json data into new Country list
+	var countryDB []Country
+	json.Unmarshal(pars, &countryDB)
+
+	return countryDB
 }
 
 //Cleans URLs by removing the unecessary prefixes,
